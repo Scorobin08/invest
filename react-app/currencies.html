@@ -135,20 +135,14 @@ function fetchAll(){
     PAIRS.forEach(function(p){
       var rub=ratesMap[p.key]; if(!rub) return;
       var result=histMap[p.sym];
-      var closes=[]; var baseline=prevCur[p.key]||rub;
-      if(result&&result.indicators&&result.indicators.quote&&result.indicators.quote[0]){
-        closes=(result.indicators.quote[0].close||[]).filter(function(v){return v!==null;});
-        var sliced=sliceForTF(closes,tf);
-        if(sliced.length>0) baseline=sliced[0];
-        closes=sliced;
-      }
+      var series=getTickerSeries(result, tf, rub, prevCur[p.key]||rub);
       renderTickerCard({
         rateEl:  document.getElementById('cr-'+p.key),
         changeEl:document.getElementById('cc-'+p.key),
         openEl:  document.getElementById('co-'+p.key),
         sparkEl: document.getElementById('cs-'+p.key),
-        price:rub, baseline:baseline,
-        closes:closes, isBtc:(p.key==='btc')
+        price:series.price, baseline:series.baseline,
+        closes:series.closes, isBtc:(p.key==='btc')
       });
       prevCur[p.key]=rub;
     });
@@ -166,8 +160,7 @@ function showChart(p){
   document.getElementById('chart-card-currency').scrollIntoView({behavior:'smooth',block:'center'});
   yahooFetch(p.sym,tfCfg.range,tfCfg.interval,function(result){
     if(!result) return;
-    var closes=(result.indicators.quote[0].close||[]).filter(function(v){return v!==null;});
-    var sliced=sliceForTF(closes,tf);
+    var sliced=sliceForTF(getQuoteCloses(result),tf);
     var labels=makeLabels(result.timestamps,sliced.length,tf);
     renderLineChart('currencyChart',labels,sliced,p.label,chartRef);
   });

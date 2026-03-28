@@ -99,18 +99,15 @@ function fetchAll(){
     ITEMS.forEach(function(it){
       var result=map[it.sym]; if(!result) return;
       var meta=result.meta;
-      var price=meta.regularMarketPrice||meta.previousClose; if(!price) return;
-      var closes=[];
-      if(result.indicators&&result.indicators.quote&&result.indicators.quote[0])
-        closes=(result.indicators.quote[0].close||[]).filter(function(v){return v!==null;});
-      var sliced=sliceForTF(closes,tf);
-      var baseline=sliced.length>0?sliced[0]:(meta.regularMarketOpen||meta.chartPreviousClose||price);
+      var livePrice=meta.regularMarketPrice||meta.previousClose;
+      var series=getTickerSeries(result, tf, livePrice, meta.regularMarketOpen||meta.chartPreviousClose||livePrice);
+      if(!series.price) return;
       renderTickerCard({
         rateEl:  document.getElementById('ir-'+it.id),
         changeEl:document.getElementById('ic-'+it.id),
         openEl:  document.getElementById('io-'+it.id),
         sparkEl: document.getElementById('is-'+it.id),
-        price:price, baseline:baseline, closes:sliced, isUSD:true
+        price:series.price, baseline:series.baseline, closes:series.closes, isUSD:true
       });
     });
     document.getElementById('upd-bonds').textContent='Обновлено: '+new Date().toLocaleTimeString('ru-RU')+' · '+currentTF;
@@ -124,8 +121,7 @@ function showChart(it){
   document.getElementById('chart-card-bond').scrollIntoView({behavior:'smooth',block:'center'});
   yahooFetch(it.sym,tfCfg.range,tfCfg.interval,function(result){
     if(!result) return;
-    var closes=(result.indicators.quote[0].close||[]).filter(function(v){return v!==null;});
-    var sliced=sliceForTF(closes,tf);
+    var sliced=sliceForTF(getQuoteCloses(result),tf);
     var labels=makeLabels(result.timestamps,sliced.length,tf);
     renderLineChart('bondChart',labels,sliced,it.label,chartRef);
   });

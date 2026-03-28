@@ -206,6 +206,20 @@ var TF_POINTS = {
   '1d':5,'2d':2,'1w':30,'1mo':90,'1y':52
 };
 function sliceForTF(c, tf) { return c.slice(-(TF_POINTS[tf] || 12)); }
+function getQuoteCloses(result) {
+  if (!result || !result.indicators || !result.indicators.quote || !result.indicators.quote[0]) return [];
+  return (result.indicators.quote[0].close || []).filter(function(v) { return v !== null; });
+}
+function getTickerSeries(result, tf, fallbackPrice, fallbackBaseline) {
+  var sliced = sliceForTF(getQuoteCloses(result), tf);
+  var price = sliced.length > 0 ? sliced[sliced.length - 1] : fallbackPrice;
+  var baseline = sliced.length > 0 ? sliced[0] : fallbackBaseline;
+  return {
+    price: price,
+    baseline: baseline != null ? baseline : price,
+    closes: sliced
+  };
+}
 
 /* ── Метки для Chart.js ── */
 function makeLabels(ts, n, tf) {
