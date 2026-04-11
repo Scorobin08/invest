@@ -164,13 +164,22 @@ function _tFetch(url, ms) {
 }
 
 function yahooFetch(sym, range, interval, cb) {
-  // Нормализация тикеров для валют (Finnhub использует формат 'CCYUSD')
-  let querySymbol = sym.toUpperCase();
+  // Нормализация тикеров для Finnhub
+  let querySymbol = sym.toUpperCase().trim();
   
-  // Если это валюта, преобразуем в формат форекса
-  const currencyPairs = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'CNY', 'RUB'];
-  if (currencyPairs.includes(querySymbol) && querySymbol !== 'USD') {
-    querySymbol = `${querySymbol}USD`;
+  // Список основных валют
+  const currencies = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD', 'CNY', 'RUB', 'SEK', 'NOK'];
+  
+  // Проверка на валютную пару (например, EURUSD, GBPUSD и т.д.)
+  const currencyPairRegex = /^([A-Z]{3})([A-Z]{3})$/;
+  const pairMatch = querySymbol.match(currencyPairRegex);
+  
+  if (pairMatch) {
+    // Это валютная пара типа EURUSD
+    querySymbol = `CCY:${querySymbol}`;
+  } else if (currencies.includes(querySymbol)) {
+    // Это отдельная валюта, предполагаем пару с USD
+    querySymbol = `CCY:${querySymbol}USD`;
   } else if (querySymbol === 'USD') {
     // USD к USD всегда 1
     setTimeout(function() {
@@ -184,7 +193,11 @@ function yahooFetch(sym, range, interval, cb) {
       });
     }, 0);
     return;
+  } else if (!querySymbol.includes(':')) {
+    // Для акций добавляем префикс US:
+    querySymbol = `US:${querySymbol}`;
   }
+  // Если уже содержит ':', оставляем как есть
 
   var key = 'finnhub:' + querySymbol;
   var hit = _cacheGet(key);
@@ -197,26 +210,43 @@ function yahooFetch(sym, range, interval, cb) {
 
   const url = `${FINNHUB_BASE_URL}/quote?symbol=${querySymbol}&token=${FINNHUB_API_KEY}`;
 
-  _tFetch(url, 3000)
+  _tFetch(url, 5000)
     .then(function(r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) {
+        throw new Error('HTTP ' + r.status);
+      }
       return r.json();
     })
     .then(function(data) {
       // Finnhub возвращает { c: current, h: high, l: low, o: open, pc: previous close, t: timestamp }
+      // Проверяем наличие данных
       if (data.c === undefined || data.pc === undefined) {
-        console.warn('[Finnhub] Нет данных для ' + querySymbol, data);
+        console.warn('[Finnhub] Нет данных для ' + querySymbol + '. Ответ:', data);
         _pendingResolve(key, null);
         return;
       }
 
-      const currentPrice = data.c;
-      const prevClose = data.pc;
+      const currentPrice = parseFloat(data.c);
+      const prevClose = parseFloat(data.pc);
       
-      // Расчет процента изменения
+      // Проверка на корректность чисел
+      if (isNaN(currentPrice) || isNaN(prevClose)) {
+        console.warn('[Finnhub] Некорректные данные для ' + querySymbol);
+        _pendingResolve(key, null);
+        return;
+      }
+      
+      // Расчет процента изменения с использованием Decimal для точности
       let changePercent = 0;
       if (prevClose > 0) {
-        changePercent = ((currentPrice - prevClose) / prevClose) * 100;
+        try {
+          const currDec = new Decimal(currentPrice);
+          const prevDec = new Decimal(prevClose);
+          changePercent = currDec.minus(prevDec).dividedBy(prevDec).times(100).toNumber();
+        } catch (e) {
+          // Fallback к обычной арифметике если Decimal недоступен
+          changePercent = ((currentPrice - prevClose) / prevClose) * 100;
+        }
       }
 
       // Преобразуем в формат Yahoo Finance для совместимости
@@ -230,9 +260,9 @@ function yahooFetch(sym, range, interval, cb) {
         indicators: {
           quote: [{
             close: [prevClose, currentPrice],
-            high: [data.l, data.h],
-            low: [data.l, data.h],
-            open: [data.o, data.c]
+            high: [data.l || prevClose, data.h || currentPrice],
+            low: [data.l || prevClose, data.h || currentPrice],
+            open: [data.o || prevClose, data.c || currentPrice]
           }]
         }
       };
