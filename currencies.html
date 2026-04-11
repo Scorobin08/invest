@@ -136,12 +136,19 @@ function fetchAll(){
       var rub=ratesMap[p.key]; if(!rub) return;
       var result=histMap[p.sym];
       var series=getTickerSeries(result, tf, rub, prevCur[p.key]||rub);
+      
+      // Если нет исторических данных для расчета baseline, используем prevCur
+      var baseline = series.baseline;
+      if (!baseline || baseline === rub) {
+        baseline = prevCur[p.key] || rub;
+      }
+      
       renderTickerCard({
         rateEl:  document.getElementById('cr-'+p.key),
         changeEl:document.getElementById('cc-'+p.key),
         openEl:  document.getElementById('co-'+p.key),
         sparkEl: document.getElementById('cs-'+p.key),
-        price:series.price, baseline:series.baseline,
+        price:series.price, baseline:baseline,
         closes:series.closes, isBtc:(p.key==='btc')
       });
       prevCur[p.key]=rub;
