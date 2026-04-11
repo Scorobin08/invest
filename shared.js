@@ -148,12 +148,14 @@ function withChart(cb) {
 }
 
 /* ══════════════════════════════════════════════════════
-   yahooFetch — с кешем и быстрым fallback
-   Порядок:
-   1. corsproxy.io (быстрый публичный прокси)
-   2. query1 напрямую
-   3. allorigins (крайний вариант)
+   yahooFetch — использует Finnhub API с ключом
+   Прямые запросы к Finnhub без прокси
+   Возвращает данные в формате совместимом со старым кодом
 ══════════════════════════════════════════════════════ */
+
+const FINNHUB_API_KEY = 'd7cvp01r01qv03etrf30d7cvp01r01qv03etrf3g';
+const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+
 function _tFetch(url, ms) {
   if (typeof AbortController === 'undefined') return fetch(url);
   var c = new AbortController();
@@ -162,45 +164,86 @@ function _tFetch(url, ms) {
 }
 
 function yahooFetch(sym, range, interval, cb) {
-  var key = sym + '|' + range + '|' + interval;
+  // Нормализация тикеров для валют (Finnhub использует формат 'CCYUSD')
+  let querySymbol = sym.toUpperCase();
+  
+  // Если это валюта, преобразуем в формат форекса
+  const currencyPairs = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'CNY', 'RUB'];
+  if (currencyPairs.includes(querySymbol) && querySymbol !== 'USD') {
+    querySymbol = `${querySymbol}USD`;
+  } else if (querySymbol === 'USD') {
+    // USD к USD всегда 1
+    setTimeout(function() {
+      cb({
+        meta: {
+          regularMarketPrice: 1,
+          regularMarketChangePercent: 0,
+          previousClose: 1,
+          chartPreviousClose: 1
+        }
+      });
+    }, 0);
+    return;
+  }
+
+  var key = 'finnhub:' + querySymbol;
   var hit = _cacheGet(key);
-  if (hit) { setTimeout(function() { cb(hit); }, 0); return; }
+  if (hit) { 
+    setTimeout(function() { cb(hit); }, 0); 
+    return; 
+  }
+  
   if (_pendingPush(key, cb)) return;
 
-  var base = 'https://query1.finance.yahoo.com/v8/finance/chart/' +
-    encodeURIComponent(sym) + '?interval=' + interval + '&range=' + range;
+  const url = `${FINNHUB_BASE_URL}/quote?symbol=${querySymbol}&token=${FINNHUB_API_KEY}`;
 
-  /* Each entry: [url, isWrapped, timeoutMs] */
-  var attempts = [
-    ['https://corsproxy.io/?' + encodeURIComponent(base), false, 2500],
-    [base, false, 1200],
-    ['https://api.allorigins.win/get?url=' + encodeURIComponent(base), true, 2500],
-  ];
+  _tFetch(url, 3000)
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data) {
+      // Finnhub возвращает { c: current, h: high, l: low, o: open, pc: previous close, t: timestamp }
+      if (data.c === undefined || data.pc === undefined) {
+        console.warn('[Finnhub] Нет данных для ' + querySymbol, data);
+        _pendingResolve(key, null);
+        return;
+      }
 
-  function parse(raw, isWrapped) {
-    var data = isWrapped ? JSON.parse(raw.contents) : raw;
-    if (!data.chart || !data.chart.result || !data.chart.result[0]) throw new Error('empty');
-    return data.chart.result[0];
-  }
-  function finish(result) {
-    if (result) _cacheSet(key, result);
-    _pendingResolve(key, result);
-  }
+      const currentPrice = data.c;
+      const prevClose = data.pc;
+      
+      // Расчет процента изменения
+      let changePercent = 0;
+      if (prevClose > 0) {
+        changePercent = ((currentPrice - prevClose) / prevClose) * 100;
+      }
 
-  function run(i) {
-    if (i >= attempts.length) { finish(null); return; }
-    var cfg = attempts[i];
-    _tFetch(cfg[0], cfg[2])
-      .then(function(r) {
-        if (!r.ok) throw new Error('http');
-        return r.json();
-      })
-      .then(function(data) {
-        finish(parse(data, cfg[1]));
-      })
-      .catch(function() { run(i + 1); });
-  }
-  run(0);
+      // Преобразуем в формат Yahoo Finance для совместимости
+      const result = {
+        meta: {
+          regularMarketPrice: currentPrice,
+          regularMarketChangePercent: changePercent,
+          previousClose: prevClose,
+          chartPreviousClose: prevClose
+        },
+        indicators: {
+          quote: [{
+            close: [prevClose, currentPrice],
+            high: [data.l, data.h],
+            low: [data.l, data.h],
+            open: [data.o, data.c]
+          }]
+        }
+      };
+
+      _cacheSet(key, result);
+      _pendingResolve(key, result);
+    })
+    .catch(function(err) {
+      console.error('[Finnhub] Ошибка для ' + querySymbol + ':', err.message);
+      _pendingResolve(key, null);
+    });
 }
 
 /* ── Batch: все символы параллельно ── */
