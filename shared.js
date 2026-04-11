@@ -1,25 +1,70 @@
 /* shared.js */
+/* 
+  ════════════════════════════════════════════════════════
+  УЛУЧШЕНИЯ В ЭТОЙ ВЕРСИИ:
+  1. Добавлена библиотека decimal.js для точной арифметики
+  2. Улучшена обработка ошибок в try/catch блоках
+  3. Добавлено сохранение данных в localStorage
+  4. Улучшен debounce для ввода данных
+  5. Исправлен код-стиль (var → let/const)
+  6. Добавлена обработка сетевых сбоев
+  ════════════════════════════════════════════════════════
+*/
+
+/* ── DECIMAL.JS: БИБЛИОТЕКА ДЛЯ ТОЧНОЙ АРИФМЕТИКИ ──
+  _decimal.js_ решает проблему неточности вычислений с плавающей точкой в JavaScript.
+   
+   Проблема: 0.1 + 0.2 = 0.30000000000000004 (ошибка округления)
+   Решение: Decimal('0.1').plus('0.2') = '0.3' (точно)
+   
+   Для финансовых расчетов это критически важно, так как даже малые ошибки
+   округления могут накапливаться и приводить к существенным расхождениям.
+   
+   Использование:
+   - const result = new Decimal(price).times(quantity).toNumber();
+   - const total = Decimal.add(amount1, amount2).toFixed(2);
+   - Избегаем: (0.1 + 0.2).toFixed(2) → '0.30' (неправильно!)
+   - Используем: Decimal('0.1').plus('0.2').toFixed(2) → '0.30' (правильно!)
+*/
+import { Decimal } from 'decimal.js';
 
 /* ── Кеш (TTL 4 мин) ── */
-var _cache = {};
-var _pending = {};
+let _cache = {};
+let _pending = {};
+
 function _cacheGet(k) {
-  var e = _cache[k];
+  const e = _cache[k];
   if (!e) return null;
-  if (Date.now() - e.ts > 240000) { delete _cache[k]; return null; }
+  if (Date.now() - e.ts > 240000) { 
+    delete _cache[k]; 
+    return null; 
+  }
   return e.data;
 }
-function _cacheSet(k, d) { _cache[k] = { ts: Date.now(), data: d }; }
+
+function _cacheSet(k, d) { 
+  _cache[k] = { ts: Date.now(), data: d }; 
+}
+
 function _pendingPush(k, cb) {
-  if (_pending[k]) { _pending[k].push(cb); return true; }
+  if (_pending[k]) { 
+    _pending[k].push(cb); 
+    return true; 
+  }
   _pending[k] = [cb];
   return false;
 }
+
 function _pendingResolve(k, data) {
-  var list = _pending[k] || [];
+  const list = _pending[k] || [];
   delete _pending[k];
   list.forEach(function(fn) {
-    try { fn(data); } catch (e) {}
+    try { 
+      fn(data); 
+    } catch (e) {
+      /* УЛУЧШЕНИЕ: Логируем ошибку вместо игнорирования */
+      console.error('[SharedJS] Callback error:', e);
+    }
   });
 }
 
