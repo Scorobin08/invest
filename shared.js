@@ -25,8 +25,10 @@
    - const total = Decimal.add(amount1, amount2).toFixed(2);
    - Избегаем: (0.1 + 0.2).toFixed(2) → '0.30' (неправильно!)
    - Используем: Decimal('0.1').plus('0.2').toFixed(2) → '0.30' (правильно!)
+   
+   Примечание: Decimal.js автоматически регистрируется в глобальной области видимости (window.Decimal)
+   при подключении через CDN. Библиотека должна быть подключена перед shared.js.
 */
-import { Decimal } from 'decimal.js';
 
 /* ── Кеш (TTL 4 мин) ── */
 let _cache = {};
@@ -324,3 +326,15 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   startClock('live-clock');
 });
+
+/* ── Экспорт функций в глобальную область видимости ── */
+window.yahooFetch = yahooFetch;
+window.yahooFetchBatch = yahooFetchBatch;
+window.renderTickerCard = renderTickerCard;
+window.renderLineChart = renderLineChart;
+window.makeLabels = makeLabels;
+window.getQuoteCloses = getQuoteCloses;
+window.getTickerSeries = getTickerSeries;
+window.sliceForTF = sliceForTF;
+window.fmtUSD = fmtUSD;
+window.startClock = startClock;

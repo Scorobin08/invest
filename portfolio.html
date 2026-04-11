@@ -69,8 +69,9 @@
     </div>
   </main>
 </div>
-<script type="module">
-import { Decimal } from 'decimal.js';
+<script src="https://cdn.jsdelivr.net/npm/decimal.js@10.4.3/decimal.min.js"></script>
+<script src="shared.js"></script>
+<script>
 let portfolio = { deposits: [], stocks: [], bonds: [], futures: [] };
 const STORAGE_KEY = 'investcalc_portfolio_v2';
 
@@ -168,14 +169,14 @@ function fetchLivePrice(sym, cb) {
 }
 
 function calcTotals() {
-  let totalCost = new Decimal(0);
-  let totalCur = new Decimal(0);
+  let totalCost = new window.Decimal(0);
+  let totalCur = new window.Decimal(0);
   portfolio.deposits.forEach(function(d) {
     try {
-      const P = new Decimal(d.qty || 0);
-      const r = new Decimal(d.buy || 0).div(100);
-      const t = new Decimal(d.cur || 0).div(12);
-      const n = new Decimal(12);
+      const P = new window.Decimal(d.qty || 0);
+      const r = new window.Decimal(d.buy || 0).div(100);
+      const t = new window.Decimal(d.cur || 0).div(12);
+      const n = new window.Decimal(12);
       if (P.greaterThan(0) && r.greaterThan(0)) {
         totalCost = totalCost.plus(P);
         const months = t.toNumber();
@@ -187,9 +188,9 @@ function calcTotals() {
   ['stocks', 'bonds', 'futures'].forEach(function(sec) {
     portfolio[sec].forEach(function(item) {
       try {
-        const qty = new Decimal(item.qty || 0);
-        const buy = new Decimal(item.buy || 0);
-        const cur = new Decimal(item.cur || 0);
+        const qty = new window.Decimal(item.qty || 0);
+        const buy = new window.Decimal(item.buy || 0);
+        const cur = new window.Decimal(item.cur || 0);
         if (qty.greaterThan(0) && buy.greaterThan(0)) { totalCost = totalCost.plus(qty.times(buy)); }
         if (qty.greaterThan(0)) {
           if (cur.greaterThan(0)) { totalCur = totalCur.plus(qty.times(cur)); }
@@ -199,7 +200,7 @@ function calcTotals() {
     });
   });
   const pnl = totalCur.minus(totalCost);
-  const pnlPct = totalCost.greaterThan(0) ? pnl.div(totalCost).times(100) : new Decimal(0);
+  const pnlPct = totalCost.greaterThan(0) ? pnl.div(totalCost).times(100) : new window.Decimal(0);
   document.getElementById('port-cost').textContent = totalCost.greaterThan(0) ? '$' + totalCost.toDecimalPlaces(2).toLocaleString() : '—';
   document.getElementById('port-current').textContent = totalCur.greaterThan(0) ? '$' + totalCur.toDecimalPlaces(2).toLocaleString() : '—';
   const pnlEl = document.getElementById('port-pnl');
@@ -259,6 +260,8 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 window.addItem = addItem;
+window.updateItem = updateItem;
+window.removeItem = removeItem;
 </script>
 </body>
 </html>
