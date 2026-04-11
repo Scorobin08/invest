@@ -12,7 +12,7 @@
     .add-btn { background: var(--up); color: #0b1220; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 600; }
     .add-btn:hover { opacity: 0.9; }
     .port-list { display: grid; gap: 8px; }
-    .port-item { display: grid; grid-template-columns: 1fr 90px 90px 80px 32px; gap: 8px; align-items: center; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; }
+    .port-item { display: grid; grid-template-columns: 1fr 90px 90px 90px 70px 32px; gap: 8px; align-items: center; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; }
     .port-item input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 6px 8px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; }
     .port-item input:focus { outline: none; border-color: var(--up); }
     .del-btn { background: var(--down); color: #fff; border: none; width: 28px; height: 28px; border-radius: 4px; cursor: pointer; font-weight: bold; }
@@ -128,10 +128,21 @@ function renderSection(section) {
     const row = document.createElement('div');
     row.className = 'port-item';
     const placeholder = section === 'deposits' ? 'Название вклада' : section === 'stocks' ? 'AAPL' : section === 'bonds' ? 'TLT' : 'GC=F';
+    
+    // Форматируем процент изменения для отображения
+    let changeDisplay = '';
+    if (item.changePercent !== undefined && item.changePercent !== null) {
+      const sign = item.changePercent >= 0 ? '+' : '';
+      const colorClass = item.changePercent >= 0 ? 'up' : 'down';
+      changeDisplay = '<span style="font-size:0.8rem;color:' + (item.changePercent >= 0 ? 'var(--up)' : 'var(--down)') + '">' + 
+                      sign + item.changePercent.toFixed(2) + '%</span>';
+    }
+    
     row.innerHTML = '<input type="text" placeholder="' + placeholder + '" value="' + (item.name || '') + '" data-field="name"/>' +
       '<input type="number" placeholder="Кол-во" value="' + (item.qty || '') + '" data-field="qty"/>' +
       '<input type="number" placeholder="Цена покупки" value="' + (item.buy || '') + '" data-field="buy"/>' +
       '<input type="number" placeholder="Тек. цена" value="' + (item.cur || '') + '" data-field="cur"/>' +
+      changeDisplay +
       '<button class="del-btn">✕</button>';
     row.querySelectorAll('input').forEach(function(inp) {
       inp.addEventListener('input', function() { updateItem(section, item.id, this.dataset.field, this.value); });
@@ -153,8 +164,22 @@ function fetchLivePrice(sym, cb) {
         if (attempts < maxAttempts) { setTimeout(tryFetch, 1000); return; }
         else { console.warn('[Portfolio] Не удалось получить цену для ' + sym); cb(null); return; }
       }
-      const price = result.meta.regularMarketPrice || result.meta.previousClose;
-      cb(price || null);
+      const meta = result.meta;
+      const price = meta.regularMarketPrice || meta.previousClose;
+      
+      // Рассчитываем процент изменения
+      let changePercent = null;
+      if (meta.regularMarketChangePercent !== undefined && meta.regularMarketChangePercent !== null) {
+        changePercent = meta.regularMarketChangePercent;
+      } else if (price && (meta.previousClose || meta.chartPreviousClose)) {
+        const prevClose = meta.previousClose || meta.chartPreviousClose;
+        if (prevClose > 0) {
+          const change = new window.Decimal(price).minus(prevClose);
+          changePercent = change.dividedBy(prevClose).times(100).toNumber();
+        }
+      }
+      
+      cb({ price: price, changePercent: changePercent });
     });
   }
   tryFetch();
@@ -234,13 +259,16 @@ function init() {
       portfolio[sec].forEach(function(item) {
         if (!item.name) return;
         const savedCur = item.cur; // Сохраняем текущее значение
-        fetchLivePrice(item.name, function(price) {
-          if (price === null) {
+        fetchLivePrice(item.name, function(data) {
+          if (data === null || data.price === null) {
             // Если не удалось получить цену — оставляем сохранённое значение
             console.log('[Portfolio] Не удалось обновить цену для ' + item.name + ', используем сохранённое: ' + savedCur);
             return;
           }
-          item.cur = price.toFixed(2);
+          item.cur = data.price.toFixed(2);
+          item.changePercent = data.changePercent; // Сохраняем процент изменения
+          
+          // Обновляем UI с процентом изменения
           renderSection(sec);
           calcTotals();
           saveToStorage();
