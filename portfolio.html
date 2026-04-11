@@ -28,7 +28,7 @@
     <div><div class="logo">InvestCalc Pro</div><div class="tagline">Financial Dashboard</div></div>
     <div class="live-clock" id="live-clock">—</div>
   </header>
-  <nav class="site-nav">
+  <nav class="site-nav" style="justify-content:center;">
     <a href="index.html" class="nav-link">🏠 Главная</a>
     <a href="currencies.html" class="nav-link">💱 Валюты</a>
     <a href="futures.html" class="nav-link">📦 Фьючерсы</a>
@@ -37,35 +37,27 @@
     <a href="portfolio.html" class="nav-link">💼 Портфолио</a>
   </nav>
 <div class="page-layout">
-  <div class="side-panel side-left">
-    <h2 style="color:#fff;margin-bottom:16px;">Моё Портфолио</h2>
-    <div class="port-section"><div class="port-header"><h2>🏦 Депозиты</h2><button class="add-btn" onclick="addItem('deposits')">+ Добавить</button></div><div class="port-list" id="list-deposits"></div></div>
-    <div class="port-section"><div class="port-header"><h2>📈 Акции</h2><button class="add-btn" onclick="addItem('stocks')">+ Добавить</button></div><div class="port-list" id="list-stocks"></div></div>
-    <div class="port-section"><div class="port-header"><h2>📄 Облигации</h2><button class="add-btn" onclick="addItem('bonds')">+ Добавить</button></div><div class="port-list" id="list-bonds"></div></div>
-    <div class="port-section"><div class="port-header"><h2>📦 Фьючерсы</h2><button class="add-btn" onclick="addItem('futures')">+ Добавить</button></div><div class="port-list" id="list-futures"></div></div>
-    <div class="port-totals"><div class="port-totals-grid">
-      <div class="total-item"><label>Стоимость покупки</label><div class="value" id="port-cost">—</div></div>
-      <div class="total-item"><label>Текущая стоимость</label><div class="value" id="port-current">—</div></div>
-      <div class="total-item"><label>Прибыль/Убыток</label><div class="value" id="port-pnl">—</div></div>
-    </div></div>
+  <div class="side-panel side-left" style="max-width:280px;">
+    <h2 style="color:#fff;margin-bottom:16px;font-size:1rem;">Как использовать</h2>
+    <ul style="color:#8899aa;line-height:1.6;font-size:0.85rem;padding-left:16px;margin:0;">
+      <li>Добавляйте активы кнопками «+ Добавить»</li>
+      <li>Введите тикер (AAPL, TLT, GC=F) для автозагрузки цены</li>
+      <li>Данные сохраняются автоматически</li>
+      <li>При обновлении страницы всё восстанавливается</li>
+    </ul>
   </div>
-  <main class="main-content">
-    <div style="padding:20px;">
-      <h3 style="color:#fff;margin-bottom:12px;">ℹ️ Как использовать</h3>
-      <ul style="color:#8899aa;line-height:1.8;">
-        <li>Добавляйте активы в соответствующие секции</li>
-        <li>Для акций/облигаций/фьючерсов указывайте тикер (например, AAPL, TLT, GC=F)</li>
-        <li>Текущие цены подгружаются автоматически при сохранении</li>
-        <li>Все данные сохраняются в браузере (localStorage)</li>
-      </ul>
-      <h3 style="color:#fff;margin:24px 0 12px;">🔧 Улучшения</h3>
-      <ul style="color:#8899aa;line-height:1.8;">
-        <li><strong>Decimal.js:</strong> Точная арифметика без ошибок округления</li>
-        <li><strong>localStorage:</strong> Автосохранение данных портфолио</li>
-        <li><strong>Debounce:</strong> Оптимизированный ввод данных (300мс)</li>
-        <li><strong>Обработка ошибок:</strong> Логирование вместо игнорирования</li>
-        <li><strong>Сетевые сбои:</strong> Повторные попытки загрузки цен</li>
-      </ul>
+  <main class="main-content" style="display:flex;flex-direction:column;align-items:center;">
+    <div class="side-panel" style="width:100%;max-width:900px;">
+      <h2 style="color:#fff;margin-bottom:20px;text-align:center;">Моё Портфолио</h2>
+      <div class="port-section"><div class="port-header"><h2>🏦 Депозиты</h2><button class="add-btn" onclick="addItem('deposits')">+ Добавить</button></div><div class="port-list" id="list-deposits"></div></div>
+      <div class="port-section"><div class="port-header"><h2>📈 Акции</h2><button class="add-btn" onclick="addItem('stocks')">+ Добавить</button></div><div class="port-list" id="list-stocks"></div></div>
+      <div class="port-section"><div class="port-header"><h2>📄 Облигации</h2><button class="add-btn" onclick="addItem('bonds')">+ Добавить</button></div><div class="port-list" id="list-bonds"></div></div>
+      <div class="port-section"><div class="port-header"><h2>📦 Фьючерсы</h2><button class="add-btn" onclick="addItem('futures')">+ Добавить</button></div><div class="port-list" id="list-futures"></div></div>
+      <div class="port-totals"><div class="port-totals-grid">
+        <div class="total-item"><label>Стоимость покупки</label><div class="value" id="port-cost">—</div></div>
+        <div class="total-item"><label>Текущая стоимость</label><div class="value" id="port-current">—</div></div>
+        <div class="total-item"><label>Прибыль/Убыток</label><div class="value" id="port-pnl">—</div></div>
+      </div></div>
     </div>
   </main>
 </div>
