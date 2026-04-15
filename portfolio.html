@@ -153,35 +153,53 @@ function renderSection(section) {
 }
 
 function fetchLivePrice(sym, cb) {
-  if (!window.yahooFetch) { console.error('[Portfolio] yahooFetch не доступен'); cb(null); return; }
+  if (!window.yahooFetch) { 
+    console.error('[Portfolio] yahooFetch не доступен'); 
+    cb(null); 
+    return; 
+  }
+  
   let attempts = 0;
   const maxAttempts = 3;
+  
   function tryFetch() {
     attempts++;
     console.log('[Portfolio] Попытка ' + attempts + '/' + maxAttempts + ' для ' + sym);
+    
     window.yahooFetch(sym, '1d', '1d', function(result) {
-      if (!result) {
-        if (attempts < maxAttempts) { setTimeout(tryFetch, 1000); return; }
-        else { console.warn('[Portfolio] Не удалось получить цену для ' + sym); cb(null); return; }
-      }
-      const meta = result.meta;
-      const price = meta.regularMarketPrice || meta.previousClose;
-      
-      // Рассчитываем процент изменения
-      let changePercent = null;
-      if (meta.regularMarketChangePercent !== undefined && meta.regularMarketChangePercent !== null) {
-        changePercent = meta.regularMarketChangePercent;
-      } else if (price && (meta.previousClose || meta.chartPreviousClose)) {
-        const prevClose = meta.previousClose || meta.chartPreviousClose;
-        if (prevClose > 0) {
-          const change = new window.Decimal(price).minus(prevClose);
-          changePercent = change.dividedBy(prevClose).times(100).toNumber();
+      if (!result || !result.meta) {
+        if (attempts < maxAttempts) { 
+          setTimeout(tryFetch, 1000); 
+          return; 
+        } else { 
+          console.warn('[Portfolio] Не удалось получить цену для ' + sym); 
+          cb(null); 
+          return; 
         }
       }
       
-      cb({ price: price, changePercent: changePercent });
+      const meta = result.meta;
+      const price = meta.regularMarketPrice;
+      const changePercent = meta.regularMarketChangePercent;
+      
+      // Проверяем корректность данных
+      if (price === undefined || price === null || isNaN(price)) {
+        console.warn('[Portfolio] Некорректная цена для ' + sym);
+        if (attempts < maxAttempts) {
+          setTimeout(tryFetch, 1000);
+          return;
+        }
+        cb(null);
+        return;
+      }
+      
+      cb({ 
+        price: price, 
+        changePercent: changePercent !== undefined ? changePercent : null 
+      });
     });
   }
+  
   tryFetch();
 }
 
