@@ -167,35 +167,27 @@ function yahooFetch(sym, range, interval, cb) {
   // Нормализация тикеров для Finnhub
   let querySymbol = sym.toUpperCase().trim();
   
-  // Список основных валют
-  const currencies = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD', 'CNY', 'RUB', 'SEK', 'NOK'];
-  
-  // Проверка на валютную пару (например, EURUSD, GBPUSD и т.д.)
-  const currencyPairRegex = /^([A-Z]{3})([A-Z]{3})$/;
-  const pairMatch = querySymbol.match(currencyPairRegex);
-  
-  if (pairMatch) {
-    // Это валютная пара типа EURUSD
-    querySymbol = `CCY:${querySymbol}`;
-  } else if (currencies.includes(querySymbol)) {
-    // Это отдельная валюта, предполагаем пару с USD
-    querySymbol = `CCY:${querySymbol}USD`;
-  } else if (querySymbol === 'USD') {
-    // USD к USD всегда 1
-    setTimeout(function() {
-      cb({
-        meta: {
-          regularMarketPrice: 1,
-          regularMarketChangePercent: 0,
-          previousClose: 1,
-          chartPreviousClose: 1
-        }
-      });
-    }, 0);
-    return;
+  // Проверка на специальные суффиксы Yahoo Finance
+  if (querySymbol.endsWith('=X')) {
+    // Это валютная пара Yahoo Finance (например, EURUSD=X)
+    querySymbol = querySymbol.replace('=X', '');
+    querySymbol = 'CCY:' + querySymbol;
+  } else if (querySymbol.endsWith('=F')) {
+    // Это фьючерс, оставляем как есть или добавляем префикс
+    // Finnhub использует свои символы для фьючерсов
+    console.log('[SharedJS] Фьючерс:', querySymbol);
   } else if (!querySymbol.includes(':')) {
-    // Для акций добавляем префикс US:
-    querySymbol = `US:${querySymbol}`;
+    // Проверяем, не является ли это валютной парой (6 букв)
+    const currencyPairRegex = /^([A-Z]{3})([A-Z]{3})$/;
+    const pairMatch = querySymbol.match(currencyPairRegex);
+    
+    if (pairMatch) {
+      // Это валютная пара типа EURUSD
+      querySymbol = 'CCY:' + querySymbol;
+    } else {
+      // Для акций добавляем префикс US:
+      querySymbol = 'US:' + querySymbol;
+    }
   }
   // Если уже содержит ':', оставляем как есть
 
@@ -208,7 +200,9 @@ function yahooFetch(sym, range, interval, cb) {
   
   if (_pendingPush(key, cb)) return;
 
-  const url = `${FINNHUB_BASE_URL}/quote?symbol=${querySymbol}&token=${FINNHUB_API_KEY}`;
+  const url = `${FINNHUB_BASE_URL}/quote?symbol=${encodeURIComponent(querySymbol)}&token=${FINNHUB_API_KEY}`;
+
+  console.log('[SharedJS] Запрос к Finnhub:', url);
 
   _tFetch(url, 5000)
     .then(function(r) {
@@ -218,12 +212,34 @@ function yahooFetch(sym, range, interval, cb) {
       return r.json();
     })
     .then(function(data) {
-      // Finnhub возвращает { c: current, h: high, l: low, o: open, pc: previous close, t: timestamp }
+      console.log('[SharedJS] Ответ Finnhub для ' + querySymbol + ':', data);
+      
+      // Finnhub возвращает { c: current, h: high, l: low, o: open, pc: previous close, t: timestamp, dp: change percent }
       // Проверяем наличие данных
-      if (data.c === undefined || data.pc === undefined) {
-        console.warn('[Finnhub] Нет данных для ' + querySymbol + '. Ответ:', data);
-        _pendingResolve(key, null);
-        return;
+      if (data.c === undefined || data.c === 0) {
+        // Для бесплатного API Finnhub некоторые данные могут отсутствовать
+        // Проверяем альтернативные поля
+        if (data.currentPrice !== undefined && data.currentPrice > 0) {
+          data.c = data.currentPrice;
+        } else {
+          console.warn('[Finnhub] Нет текущей цены для ' + querySymbol + '. Ответ:', data);
+          _pendingResolve(key, null);
+          return;
+        }
+      }
+      
+      if (data.pc === undefined || data.pc === 0) {
+        // Если нет previous close, пробуем использовать другие поля
+        if (data.previousClose !== undefined && data.previousClose > 0) {
+          data.pc = data.previousClose;
+        } else if (data.o !== undefined && data.o > 0) {
+          // Используем цену открытия как базовую
+          data.pc = data.o;
+        } else {
+          // Если совсем нет данных, используем текущую цену как базовую
+          data.pc = data.c;
+          console.log('[Finnhub] Используем текущую цену как базовую для ' + querySymbol);
+        }
       }
 
       const currentPrice = parseFloat(data.c);
@@ -238,7 +254,11 @@ function yahooFetch(sym, range, interval, cb) {
       
       // Расчет процента изменения с использованием Decimal для точности
       let changePercent = 0;
-      if (prevClose > 0) {
+      
+      // Если Finnhub вернул процент изменения, используем его
+      if (data.dp !== undefined && data.dp !== null && !isNaN(data.dp)) {
+        changePercent = data.dp;
+      } else if (prevClose > 0) {
         try {
           const currDec = new Decimal(currentPrice);
           const prevDec = new Decimal(prevClose);
